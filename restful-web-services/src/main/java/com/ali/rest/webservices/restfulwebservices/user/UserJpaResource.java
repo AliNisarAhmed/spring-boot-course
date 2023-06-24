@@ -1,5 +1,6 @@
 package com.ali.rest.webservices.restfulwebservices.user;
 
+import com.ali.rest.webservices.restfulwebservices.jpa.PostRepository;
 import com.ali.rest.webservices.restfulwebservices.jpa.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.hateoas.EntityModel;
@@ -24,22 +25,24 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 public class UserJpaResource {
 
     private UserDaoService service;
-    private UserRepository repository;
+    private UserRepository userRepository;
+    private PostRepository postRepository;
 
-    public UserJpaResource(UserDaoService service, UserRepository repository) {
+    public UserJpaResource(UserDaoService service, UserRepository repository, PostRepository postRepository) {
         this.service = service;
-        this.repository = repository;
+        this.userRepository = repository;
+        this.postRepository = postRepository;
     }
 
     @GetMapping("/jpa/users")
     public List<User> getAllUsers() {
-        return repository.findAll();
+        return userRepository.findAll();
     }
 
     @GetMapping("/jpa/users/{userId}")
     public EntityModel<User> retrieveUser(@PathVariable int userId) {
 
-        Optional<User> user = repository.findById(userId);
+        Optional<User> user = userRepository.findById(userId);
 
         if (user.isEmpty()) {
             throw new UserNotFoundException("id: " + userId);
@@ -56,21 +59,47 @@ public class UserJpaResource {
     @DeleteMapping("/jpa/users/{userId}")
     public User deleteUser(@PathVariable int userId) {
 
-        Optional<User> user = repository.findById(userId);
+        Optional<User> user = userRepository.findById(userId);
 
         if (user.isEmpty()) {
             throw new UserNotFoundException("id: " + userId);
         }
 
-        repository.deleteById(user.get().getId());
+        userRepository.deleteById(user.get().getId());
 
         return user.get();
     }
 
     @PostMapping("/jpa/users")
     public ResponseEntity<User> createUser(@Valid @RequestBody User user) {
-        User savedUser = repository.save(user);
+        User savedUser = userRepository.save(user);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(savedUser.getId()).toUri();
+        return ResponseEntity.created(location).build();
+    }
+
+    @GetMapping("/jpa/users/{userId}/posts")
+    public List<Post> retrievePostsForUser(@PathVariable int userId) {
+        Optional<User> user = userRepository.findById(userId);
+
+        if (user.isEmpty()) {
+            throw new UserNotFoundException("User not found");
+        }
+
+        return user.get().getPosts();
+    }
+
+    @PostMapping("/jpa/users/{userId}/posts")
+    public ResponseEntity<Post> createPostForUser(@PathVariable int userId, @Valid @RequestBody Post post) {
+        Optional<User> user = userRepository.findById(userId);
+        if (user.isEmpty()) {
+            throw new UserNotFoundException("User not found");
+        }
+
+        post.setUser(user.get());
+
+        Post savedPost = postRepository.save(post);
+
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(savedPost.getId()).toUri();
         return ResponseEntity.created(location).build();
     }
 }
